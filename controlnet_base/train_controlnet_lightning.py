@@ -127,15 +127,20 @@ class StableDiffusionXL(pl.LightningModule):
             down_block_additional_residuals=down_block_res_samples,
             mid_block_additional_residual=mid_block_res_sample,
         ).sample
-
+        
+        # for stable diffusion 1.5
+        target = noise
+        # for stable diffusion 2.1 (this is particularly important as you will not converge if you use the same with 1.5)
+        # target = noise_scheduler.get_velocity(model_input, noise, timesteps)
+        
         if not self.use_snr:
-            loss = F.mse_loss(model_pred.float(), noise.float(), reduction="mean")
+            loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
         else:
             snr = self.compute_snr(timesteps)
             mse_loss_weights = (
                 torch.stack([snr, self.snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
             )
-            loss = F.mse_loss(model_pred.float(), noise.float(), reduction="none")
+            loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
             loss = loss.mean(dim=list(range(1, len(loss.shape)))) * mse_loss_weights
             loss = loss.mean()
 
